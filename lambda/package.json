@@ -1,0 +1,18 @@
+{
+  "name": "lambda",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.913.0",
+    "@aws-sdk/client-ssm": "^3.995.0",
+    "@aws-sdk/lib-dynamodb": "^3.913.0",
+    "electrodb": "^3.5.3"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

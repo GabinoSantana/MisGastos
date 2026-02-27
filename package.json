@@ -2,9 +2,10 @@
   "name": "telegram-bot-gastos",
   "version": "0.1.0",
   "bin": {
-    "telegram-bot-gastos": "bin/telegram-bot-gastos.js"
+    "telegram-bot-gastos": "dist/bin/telegram-bot-gastos.js"
   },
   "scripts": {
+    "clean": "rm -rf dist",
     "build": "tsc",
     "watch": "tsc -w",
     "test": "jest",

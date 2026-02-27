@@ -208,6 +208,89 @@ El webhook debe ser público para Telegram, pero se recomienda:
 - exponer solo `POST` en el endpoint;
 - agregar AWS WAF con rate limit.
 
+## Infrastructure Cost Estimation
+
+Estimación mensual de costos para la infraestructura declarada en CDK en `lib/telegram-bot-gastos-stack.ts`, usando precios públicos on-demand en `us-east-1`, sin Free Tier.
+
+### Recursos detectados en CDK
+
+| Recurso CDK | Servicio AWS | Tipo de pricing |
+| ----------- | ------------ | --------------- |
+| `NodejsFunction` (`TelegramGastosBotLambda`) | AWS Lambda | Requests + Compute (GB-second) |
+| `RestApi` (`TelegramGastosBotApiGateway`) | Amazon API Gateway (REST API) | API Calls (request-based, por tramos) |
+| `Table` (`gastosTabla`, PAY_PER_REQUEST) + 2 GSI | Amazon DynamoDB | On-Demand Read Request Units + On-Demand Write Request Units + Storage (GB-Month) |
+| Log group implícito de Lambda | Amazon CloudWatch Logs | Ingested Logs (GB) + Log Storage (GB-Month) |
+| `StringParameter.fromSecureStringParameterAttributes` | SSM Parameter Store | Referencia a parámetro existente (no crea recurso nuevo en este stack) |
+
+### Supuestos de carga
+
+- Región: `us-east-1`.
+- Modelo de precios: On-Demand público.
+- Sin Free Tier (cuando el precio publicado incluye tramo gratis, se usa el tramo pago).
+- Relación de tráfico:
+  - 1 request a API Gateway = 1 invocación Lambda.
+  - DynamoDB por request: `0.6` WRU y `1.8` RRU (promedio).
+- Lambda:
+  - Memoria: `512 MB` (definida en CDK).
+  - Duración promedio: `300 ms` por invocación.
+  - Cómputo por invocación: `0.5 GB * 0.3 s = 0.15 GB-s`.
+- Logs:
+  - Tráfico bajo: `2 GB` ingestados / `2 GB-Month` almacenados.
+  - Tráfico medio: `20 GB` ingestados / `20 GB-Month` almacenados.
+  - Tráfico alto: `200 GB` ingestados / `200 GB-Month` almacenados.
+- Escenarios de requests/mes:
+  - Bajo: `100,000`
+  - Medio: `1,000,000`
+  - Alto: `10,000,000`
+
+### Precios unitarios (fuente MCP AWS Pricing)
+
+| Servicio | Tipo | Precio unitario USD |
+| -------- | ---- | ------------------- |
+| AWS Lambda | Requests | `0.0000002000` por request |
+| AWS Lambda | Compute (Tier-1) | `0.0000166667` por GB-second |
+| Amazon API Gateway (REST API) | API calls (primer tramo hasta 333M req/mes) | `0.0000035000` por request |
+| Amazon DynamoDB On-Demand | Write Request Unit | `0.0000006250` por WRU |
+| Amazon DynamoDB On-Demand | Read Request Unit | `0.0000001250` por RRU |
+| Amazon DynamoDB | Storage | `0.2500000000` por GB-Month (tramo pago) |
+| Amazon CloudWatch Logs | Ingested logs | `0.5000000000` por GB |
+| Amazon CloudWatch Logs | Log storage | `0.0300000000` por GB-Month |
+
+### Costos mensuales por escenario
+
+| Servicio | Tráfico bajo (USD) | Tráfico medio (USD) | Tráfico alto (USD) |
+| -------- | ------------------:| -------------------:| ------------------:|
+| API Gateway (REST API requests) | 0.35 | 3.50 | 35.00 |
+| Lambda requests | 0.02 | 0.20 | 2.00 |
+| Lambda compute | 0.25 | 2.50 | 25.00 |
+| DynamoDB writes | 0.04 | 0.38 | 3.75 |
+| DynamoDB reads | 0.02 | 0.23 | 2.25 |
+| DynamoDB storage | 0.50 | 2.50 | 10.00 |
+| CloudWatch Logs ingest | 1.00 | 10.00 | 100.00 |
+| CloudWatch Logs storage | 0.06 | 0.60 | 6.00 |
+| **Total mensual estimado** | **2.24** | **19.90** | **184.00** |
+
+### Fuentes de cada precio (MCP y tipo)
+
+- `AWSLambda`:
+  - `group=AWS-Lambda-Requests`, `usagetype=Request`.
+  - `group=AWS-Lambda-Duration`, `usagetype=Lambda-GB-Second`.
+- `AmazonApiGateway`:
+  - `operation=ApiGatewayRequest`, `usagetype=USE1-ApiGatewayRequest`.
+- `AmazonDynamoDB`:
+  - `group=DDB-WriteUnits`, `usagetype=WriteRequestUnits`, `operation=PayPerRequestThroughput`.
+  - `group=DDB-ReadUnits`, `usagetype=ReadRequestUnits`, `operation=PayPerRequestThroughput`.
+  - `productFamily=Database Storage`, `usagetype=TimedStorage-ByteHrs`, `volumeType=Amazon DynamoDB - Indexed DataStore`.
+- `AmazonCloudWatch`:
+  - `operation=PutLogEvents`, `usagetype=USE1-DataProcessing-Bytes`.
+  - `usagetype=TimedStorage-ByteHrs` (log storage).
+
+### Aclaraciones
+
+- El stack referencia un parámetro SSM existente (`fromSecureStringParameterAttributes`), pero no crea ese recurso en CloudFormation.
+- No se incluyeron costos de egress/data transfer a Internet ni costos externos a AWS (Telegram API), porque no están modelados explícitamente en este stack.
+- Si querés, se puede agregar un cuarto escenario incluyendo egress (GB/mes) consultando `AWSDataTransfer` en el MCP.
+
 ## Estado del proyecto
 
 Proyecto funcional para registro y consulta mensual de gastos, con arquitectura modular en Lambda y despliegue reproducible con CDK. La base es estable para evolucionar hacia reportes avanzados, configuración externa y mayor hardening de seguridad.

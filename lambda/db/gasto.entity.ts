@@ -2,6 +2,10 @@ import { Entity } from "electrodb";
 import { docClient } from "./client";
 const table = process.env.TABLE_NAME;
 if (!table) throw new Error("TABLE_NAME is required");
+const gsiFechaName = process.env.GSI_FECHA_NAME;
+if (!gsiFechaName) throw new Error("GSI_FECHA_NAME is required");
+const gsiRubroName = process.env.GSI_RUBRO_NAME;
+if (!gsiRubroName) throw new Error("GSI_RUBRO_NAME is required");
 
 export const GastoEntity = new Entity(
   {
@@ -44,7 +48,7 @@ export const GastoEntity = new Entity(
         },
       },
       byFecha: {
-        index: "gsiFecha",
+        index: gsiFechaName,
         pk: {
           field: "gsiFechaPk",
           composite: ["fecha"],
@@ -57,7 +61,7 @@ export const GastoEntity = new Entity(
         },
       },
       byRubro: {
-        index: "gsiRubro",
+        index: gsiRubroName,
         pk: {
           field: "gsiRubroPk",
           composite: ["rubroNormalizado"],

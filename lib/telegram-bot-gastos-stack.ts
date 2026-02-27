@@ -9,18 +9,26 @@ import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 // import * as sqs from 'aws-cdk-lib/aws-sqs';
 
+const TELEGRAM_BOT_TOKEN_PARAM_NAME = "/telegram-bot-gastos/telegram-token";
+const GSI_FECHA_NAME = "gsiFecha";
+const GSI_RUBRO_NAME = "gsiRubro";
+
 export class TelegramBotGastosStack extends cdk.Stack {
   public readonly apiUrl: CfnOutput;
   public readonly lambdaFunctionName: CfnOutput;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+    const sharedSummaryChatIds =
+      this.node.tryGetContext("sharedSummaryChatIds") ??
+      process.env.SHARED_SUMMARY_CHAT_IDS ??
+      "";
     const telegramTokenParam =
       ssm.StringParameter.fromSecureStringParameterAttributes(
         this,
         "TelegramBotTokenParam",
         {
-          parameterName: "/telegram-bot-gastos/telegram-token",
+          parameterName: TELEGRAM_BOT_TOKEN_PARAM_NAME,
         },
       );
     const gastosTabla = new Table(this, "gastosTabla", {
@@ -30,13 +38,13 @@ export class TelegramBotGastosStack extends cdk.Stack {
     });
 
     gastosTabla.addGlobalSecondaryIndex({
-      indexName: "gsiFecha",
+      indexName: GSI_FECHA_NAME,
       partitionKey: { name: "gsiFechaPk", type: AttributeType.STRING },
       sortKey: { name: "gsiFechaSk", type: AttributeType.STRING },
     });
 
     gastosTabla.addGlobalSecondaryIndex({
-      indexName: "gsiRubro",
+      indexName: GSI_RUBRO_NAME,
       partitionKey: { name: "gsiRubroPk", type: AttributeType.STRING },
       sortKey: { name: "gsiRubroSk", type: AttributeType.STRING },
     });
@@ -57,9 +65,10 @@ export class TelegramBotGastosStack extends cdk.Stack {
         },
         environment: {
           TABLE_NAME: gastosTabla.tableName,
-          GSI_FECHA_NAME: "gsiFecha",
-          GSI_RUBRO_NAME: "gsiRubro",
-          TELEGRAM_BOT_TOKEN_PARAM_NAME: "/telegram-bot-gastos/telegram-token",
+          GSI_FECHA_NAME,
+          GSI_RUBRO_NAME,
+          TELEGRAM_BOT_TOKEN_PARAM_NAME,
+          SHARED_SUMMARY_CHAT_IDS: sharedSummaryChatIds,
         },
       },
     );

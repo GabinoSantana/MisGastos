@@ -48,11 +48,11 @@ Usuario (Telegram)
 
 ### Servicios AWS usados
 
-| Servicio | Propósito |
-|---|---|
-| API Gateway | Endpoint de webhook |
-| Lambda (Node.js 22) | Lógica del bot |
-| DynamoDB | Persistencia de gastos |
+| Servicio            | Propósito                       |
+| ------------------- | ------------------------------- |
+| API Gateway         | Endpoint de webhook             |
+| Lambda (Node.js 22) | Lógica del bot                  |
+| DynamoDB            | Persistencia de gastos          |
 | SSM Parameter Store | Token del bot como SecureString |
 
 ## Flujo de uso
@@ -126,15 +126,15 @@ cd lambda && npm install && cd ..
 
 ## Scripts principales
 
-| Comando | Descripción |
-|---|---|
-| `npm run build` | Compila TypeScript a `dist/` |
-| `npm run clean` | Limpia `dist/` |
-| `npm run watch` | Compilación en modo watch |
-| `npm test` | Ejecuta tests unitarios |
-| `npx cdk synth` | Sintetiza CloudFormation |
-| `npx cdk diff` | Muestra diferencias con lo desplegado |
-| `npx cdk deploy` | Despliega infraestructura |
+| Comando          | Descripción                           |
+| ---------------- | ------------------------------------- |
+| `npm run build`  | Compila TypeScript a `dist/`          |
+| `npm run clean`  | Limpia `dist/`                        |
+| `npm run watch`  | Compilación en modo watch             |
+| `npm test`       | Ejecuta tests unitarios               |
+| `npx cdk synth`  | Sintetiza CloudFormation              |
+| `npx cdk diff`   | Muestra diferencias con lo desplegado |
+| `npx cdk deploy` | Despliega infraestructura             |
 
 ## Despliegue y webhook
 
@@ -155,12 +155,19 @@ https://api.telegram.org/bot<TOKEN>/setWebhook?url=<CFNApiUrl>/telegram-gastos-b
 
 Se inyectan desde CDK:
 
-| Variable | Descripción |
-|---|---|
-| `TABLE_NAME` | Tabla DynamoDB |
-| `GSI_FECHA_NAME` | GSI por fecha |
-| `GSI_RUBRO_NAME` | GSI por rubro |
-| `TELEGRAM_BOT_TOKEN_PARAM_NAME` | Path SSM del token |
+| Variable                        | Descripción                                            |
+| ------------------------------- | ------------------------------------------------------ |
+| `TABLE_NAME`                    | Tabla DynamoDB                                         |
+| `GSI_FECHA_NAME`                | GSI por fecha                                          |
+| `GSI_RUBRO_NAME`                | GSI por rubro                                          |
+| `TELEGRAM_BOT_TOKEN_PARAM_NAME` | Path SSM del token                                     |
+| `SHARED_SUMMARY_CHAT_IDS`       | Lista CSV de chat IDs que comparten resumen (opcional) |
+
+Configurar `SHARED_SUMMARY_CHAT_IDS` en deploy (sin hardcode en código):
+
+```bash
+npx cdk deploy -c sharedSummaryChatIds=123,456
+```
 
 ## Estructura del código
 

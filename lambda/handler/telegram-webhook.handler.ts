@@ -5,21 +5,27 @@ import { handleResumenMesCommand } from "../commands/resumen-mes.command";
 import type { TelegramWebhookPayload } from "../telegram/telegram.types";
 import { getWebhookSecret } from "../telegram/webhook.secret";
 import { createResponse } from "../utils/http.utils";
+import { buildSafeRequestMeta } from "../utils/logger.utils";
 import { isValidTelegramSecret } from "../utils/validateToken.utils";
 
-async function handleTelegramPost(event: any) {
+async function handleTelegramPost(event: any, requestMeta: any) {
   let payload: TelegramWebhookPayload = {};
 
   try {
     payload = JSON.parse(event?.body ?? "{}");
   } catch (error) {
-    console.warn("Invalid JSON body", error);
+    console.warn("Invalid JSON body", { requestId: requestMeta.requestId });
     return createResponse(200, { message: "ok" });
   }
 
   const updateId = payload.update_id;
   const text = payload.message?.text;
   const chatId = payload.message?.chat?.id;
+  console.info("Telegram update parsed", {
+    updateId: updateId ?? null,
+    chatId: chatId ?? null,
+    hasText: typeof payload.message?.text === "string",
+  });
 
   if (updateId == null || chatId == null || typeof text !== "string") {
     console.log("Non-message update or missing fields");
@@ -62,31 +68,21 @@ async function handleTelegramPost(event: any) {
       return createResponse(200, { message: "ok" });
     }
 
-    console.warn("Message ignored (validation/parsing/save):", error);
+    console.warn("Message ignored ", {
+      requestId: requestMeta.requestId,
+      reason: msg,
+      updateId: updateId ?? null,
+    });
     return createResponse(200, { message: "ok" });
   }
 }
 
 export const handler = async (event: any): Promise<any> => {
+  const requestMeta = buildSafeRequestMeta(event);
+  console.log("Webhook request received", requestMeta);
   try {
     const httpMethod = event?.httpMethod;
-    // TODO: this must be eliminated only for debugging purposes
-    console.log("Event:", JSON.stringify(event, null, 2));
-    // TODO: enable this when previous log is eliminated
-    // const requestId = event.requestContext?.requestId;
-    // const path = event.path;
-    // const hasSecretHeader = !!(
-    //   event.headers?.["X-Telegram-Bot-Api-Secret-Token"] ||
-    //   event.headers?.["x-telegram-bot-api-secret-token"]
-    // );
-    // console.log(
-    //   JSON.stringify({
-    //     requestId,
-    //     httpMethod,
-    //     path,
-    //     hasSecretHeader,
-    //   }),
-    // );
+
     switch (httpMethod) {
       case "POST":
         const webhookSecret = await getWebhookSecret();
@@ -96,9 +92,12 @@ export const handler = async (event: any): Promise<any> => {
         }
         if (!isValidTelegramSecret(event, webhookSecret!)) {
           console.log("Unauthorized request [401]");
-          return createResponse(401, { message: "Unauthorized" });
+          return createResponse(401, {
+            message: "Unauthorized",
+            requestId: requestMeta.requestId,
+          });
         }
-        return await handleTelegramPost(event);
+        return await handleTelegramPost(event, requestMeta);
 
       default:
         return createResponse(405, { message: "Invalid request method" });

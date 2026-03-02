@@ -314,7 +314,7 @@ Regla de flujo:
   - tests: unit tests de payload contract
   - logs/metricas: metrica enqueue success/failure
   - documentacion: contrato de evento
-- estado: todo
+- estado: done (sin tests automatizados aún)
 
 ### P1-T2 - Crear SQS principal + DLQ
 
@@ -333,7 +333,7 @@ Regla de flujo:
   - tests: cdk synth checks
   - logs/metricas: age of oldest message + DLQ metrics
   - documentacion: parametros de cola explicados
-- estado: todo
+- estado: done (sin tests automatizados aún)
 
 ### P1-T3 - Implementar worker lambda con retries parciales
 
@@ -352,7 +352,7 @@ Regla de flujo:
   - tests: unit tests worker + idempotencia
   - logs/metricas: errores por item y retries
   - documentacion: estrategia de retries
-- estado: todo
+- estado: done (sin tests automatizados aún)
 
 ### P1-T4 - Runbook de reproceso DLQ
 
@@ -371,7 +371,7 @@ Regla de flujo:
   - tests: N/A
   - logs/metricas: N/A
   - documentacion: seccion DLQ runbook
-- estado: todo
+- estado: done (sin tests automatizados aún)
 
 ### P2 - Data Model Optimization Tasks
 
@@ -392,7 +392,7 @@ Regla de flujo:
   - tests: unit tests de repositorio
   - logs/metricas: comparativa RCU antes/despues
   - documentacion: data model section
-- estado: todo
+- estado: done (sin tests automatizados aún)
 
 ### P2-T2 - Actualizar worker para mantener agregados idempotentes
 
@@ -411,7 +411,7 @@ Regla de flujo:
   - tests: casos de idempotencia y concurrencia
   - logs/metricas: contador de conflictos/reintentos
   - documentacion: notas de consistencia
-- estado: todo
+- estado: done (sin tests automatizados aún)
 
 ### P2-T3 - Migrar resumen/listado a paths optimizados
 
@@ -430,7 +430,7 @@ Regla de flujo:
   - tests: regresion funcional comandos
   - logs/metricas: p95 de consulta menor al baseline
   - documentacion: README actualizada
-- estado: todo
+- estado: done(sin tests automatizados aún)
 
 ### P2-T4 - Medir mejora de latencia y consumo
 
@@ -449,7 +449,7 @@ Regla de flujo:
   - tests: benchmark reproducible
   - logs/metricas: tablas de comparacion
   - documentacion: resultados en README
-- estado: todo
+- estado: done
 
 ### P3 - Observability and Cost Tasks
 

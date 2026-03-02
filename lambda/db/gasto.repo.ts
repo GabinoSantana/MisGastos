@@ -1,4 +1,4 @@
-import { GastoEntity } from "./gasto.entity";
+import { GastoEntity, ResumenMensualEntity } from "./gasto.entity";
 
 export type NewGasto = {
   gastoId: string;
@@ -32,6 +32,24 @@ export type GastoListadoItem = {
   descripcion: string;
   chatId: string;
   createdAt: string;
+};
+
+export type ResumenMensualAggregate = {
+  chatId: string;
+  mes: string; // YYYY-MM
+  totalMes: number;
+  cantidad: number;
+  totalPorRubro: Record<string, number>;
+  updatedAt: string;
+};
+
+export type UpsertResumenMensualInput = {
+  chatId: string;
+  mes: string; // YYYY-MM
+  totalMes: number;
+  cantidad: number;
+  totalPorRubro: Record<string, number>;
+  nowIso?: string;
 };
 
 export async function createGasto(input: NewGasto) {
@@ -85,7 +103,7 @@ function toIsoDate(year: number, month1to12: number, day: number): string {
   return `${year}-${String(month1to12).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-export async function getResumenMensual(
+async function getResumenMensualLegacy(
   chatIds: string[],
   mes: string,
 ): Promise<ResumenMensual> {
@@ -133,6 +151,20 @@ export async function getResumenMensual(
   );
 }
 
+export async function getResumenMensual(
+  chatIds: string[],
+  mes: string,
+): Promise<ResumenMensual> {
+  const agg = await getResumenMensualFromAggregates(chatIds, mes);
+
+  // Si no hay agregados aún, seguimos con el path viejo
+  if (agg.cantidad === 0) {
+    return getResumenMensualLegacy(chatIds, mes);
+  }
+
+  return agg;
+}
+
 export async function getListadoMensual(
   chatIds: string[],
   mes: string,
@@ -171,4 +203,168 @@ export async function getListadoMensual(
       if (a.fecha === b.fecha) return a.createdAt.localeCompare(b.createdAt);
       return a.fecha.localeCompare(b.fecha);
     });
+}
+
+export async function getListadoMensualOptimized(
+  chatIds: string[],
+  mes: string,
+): Promise<GastoListadoItem[]> {
+  const [yearStr, monthStr] = mes.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    month < 1 ||
+    month > 12
+  ) {
+    throw new Error("Mes inválido. Formato esperado YYYY-MM");
+  }
+
+  const days = getDaysInMonth(year, month);
+
+  // Generar todas las fechas del mes
+  const fechas: string[] = [];
+  for (let day = 1; day <= days; day++) {
+    fechas.push(toIsoDate(year, month, day));
+  }
+
+  // Batch de 5 fechas por vez (reduce de 31 queries a ~6-7)
+  const batchSize = 5;
+  const allItems: GastoListadoItem[] = [];
+
+  for (let i = 0; i < fechas.length; i += batchSize) {
+    const batch = fechas.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map((fecha) =>
+        GastoEntity.query
+          .byFecha({ fecha })
+          .go()
+          .then((r) => (r.data as GastoListadoItem[]) ?? []),
+      ),
+    );
+    allItems.push(...batchResults.flat());
+  }
+
+  const allowedChatIds = new Set(chatIds);
+
+  return allItems
+    .filter((x) => allowedChatIds.has(x.chatId))
+    .sort((a, b) => {
+      if (a.fecha === b.fecha) return a.createdAt.localeCompare(b.createdAt);
+      return a.fecha.localeCompare(b.fecha);
+    });
+}
+export async function upsertResumenMensual(
+  input: UpsertResumenMensualInput,
+): Promise<void> {
+  assertMesFormato(input.mes);
+
+  const nowIso = input.nowIso ?? new Date().toISOString();
+
+  // upsert simple para P2-T1 (idempotencia/atomicidad fina se endurece en P2-T2)
+  await ResumenMensualEntity.put({
+    chatId: input.chatId,
+    mes: input.mes,
+    totalMes: input.totalMes,
+    cantidad: input.cantidad,
+    totalPorRubro: input.totalPorRubro,
+    updatedAt: nowIso,
+  }).go();
+}
+
+function mergeResumen(
+  acc: ResumenMensual,
+  curr: Pick<ResumenMensual, "totalMes" | "cantidad" | "totalPorRubro">,
+): ResumenMensual {
+  acc.totalMes += curr.totalMes;
+  acc.cantidad += curr.cantidad;
+
+  for (const [rubro, monto] of Object.entries(curr.totalPorRubro)) {
+    acc.totalPorRubro[rubro] = (acc.totalPorRubro[rubro] ?? 0) + monto;
+  }
+
+  return acc;
+}
+
+export async function getResumenMensualFromAggregates(
+  chatIds: string[],
+  mes: string,
+): Promise<ResumenMensual> {
+  assertMesFormato(mes);
+
+  if (chatIds.length === 0) {
+    return { totalMes: 0, totalPorRubro: {}, cantidad: 0 };
+  }
+
+  const results = await Promise.all(
+    chatIds.map(async (chatId) => {
+      const response = await ResumenMensualEntity.get({ chatId, mes }).go();
+      return response.data as ResumenMensualAggregate | null;
+    }),
+  );
+
+  const base: ResumenMensual = { totalMes: 0, totalPorRubro: {}, cantidad: 0 };
+
+  for (const item of results) {
+    if (!item) continue;
+
+    mergeResumen(base, {
+      totalMes: item.totalMes ?? 0,
+      cantidad: item.cantidad ?? 0,
+      totalPorRubro: (item.totalPorRubro ?? {}) as Record<string, number>,
+    });
+  }
+
+  return base;
+}
+export async function atomicUpdateResumenMensual(
+  chatId: string,
+  mes: string,
+  monto: number,
+  rubro: string,
+  updateId: string,
+): Promise<{ skipped: boolean }> {
+  assertMesFormato(mes);
+
+  const nowIso = new Date().toISOString();
+
+  try {
+    // Intentar crear el registro con updateId (condición: no existe o tiene updateId diferente)
+    await ResumenMensualEntity.create({
+      chatId,
+      mes,
+      totalMes: monto,
+      cantidad: 1,
+      totalPorRubro: { [rubro]: monto },
+      updatedAt: nowIso,
+      lastUpdateId: updateId,
+    })
+      .where((attr, { ne }) => `${attr.lastUpdateId} ${ne} "${updateId}"`)
+      .go();
+
+    return { skipped: false };
+  } catch (err) {
+    const isConditionalCheckFailed =
+      err instanceof Error &&
+      (err.message.includes("ConditionalCheckFailedException") ||
+        err.name === "ConditionalCheckFailedException");
+
+    if (isConditionalCheckFailed) {
+      // Ya existe con este updateId -> idempotencia, ignorar
+      return { skipped: true };
+    }
+    throw err;
+  }
+}
+
+function assertMesFormato(mes: string): void {
+  const match = /^(\d{4})-(\d{2})$/.exec(mes);
+  if (!match) throw new Error("Mes inválido. Formato esperado YYYY-MM");
+
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) {
+    throw new Error("Mes inválido. Formato esperado YYYY-MM");
+  }
 }

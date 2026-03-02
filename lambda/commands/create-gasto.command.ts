@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { createGasto } from "../db/gasto.repo";
 import { parseGastoText } from "../domain/parse-gasto-text";
 import type { TelegramFrom } from "../telegram/telegram.types";
+import {
+  atomicUpdateResumenMensual,
+  createGasto,
+  getResumenMensualFromAggregates,
+  upsertResumenMensual,
+} from "../db/gasto.repo";
 
 type HandleCreateGastoInput = {
   text: string;
@@ -47,4 +52,13 @@ export async function handleCreateGastoCommand({
     telegramUsername,
     telegramLanguageCode,
   });
+  const mes = parsed.fecha.slice(0, 7);
+  // Update atómico del agregado (idempotente)
+  await atomicUpdateResumenMensual(
+    chatId,
+    mes,
+    parsed.monto,
+    parsed.rubro,
+    updateId,
+  );
 }

@@ -1,4 +1,4 @@
-import { getListadoMensual } from "../db/gasto.repo";
+import { getListadoMensualOptimized } from "../db/gasto.repo";
 import { formatListadoMensual } from "../formatting/message.formatter";
 import {
   getMesActual,
@@ -32,7 +32,7 @@ export async function handleGastosMesCommand({
   }
 
   const scopeChatIds = getResumenScopeChatIds(chatId);
-  const listado = await getListadoMensual(scopeChatIds, mes);
+  const listado = await getListadoMensualOptimized(scopeChatIds, mes);
   const textoListado = formatListadoMensual(mes, listado);
 
   await sendTelegramLongMessage(chatId, textoListado);

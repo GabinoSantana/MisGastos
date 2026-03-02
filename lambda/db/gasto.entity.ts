@@ -7,6 +7,43 @@ if (!gsiFechaName) throw new Error("GSI_FECHA_NAME is required");
 const gsiRubroName = process.env.GSI_RUBRO_NAME;
 if (!gsiRubroName) throw new Error("GSI_RUBRO_NAME is required");
 
+export const ResumenMensualEntity = new Entity(
+  {
+    model: {
+      entity: "resumenMensual",
+      version: "1",
+      service: "telegramGastosBot",
+    },
+    attributes: {
+      chatId: { type: "string", required: true },
+      mes: { type: "string", required: true },
+      totalMes: { type: "number", required: true },
+      cantidad: { type: "number", required: true },
+      totalPorRubro: { type: "any", required: true },
+      updatedAt: { type: "string" }, // ISO
+      lastUpdateId: { type: "string" }, // idempotencia por update
+    },
+    indexes: {
+      byChatMes: {
+        pk: {
+          field: "pk",
+          composite: ["chatId"],
+          template: "CHAT#${chatId}",
+        },
+        sk: {
+          field: "sk",
+          composite: ["mes"],
+          template: "MONTH#${mes}#SUMMARY",
+        },
+      },
+    },
+  },
+  {
+    client: docClient,
+    table,
+  },
+);
+
 export const GastoEntity = new Entity(
   {
     model: {

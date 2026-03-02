@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.913.0",
+    "@aws-sdk/client-sqs": "^3.1000.0",
     "@aws-sdk/client-ssm": "^3.995.0",
     "@aws-sdk/lib-dynamodb": "^3.913.0",
     "electrodb": "^3.5.3"

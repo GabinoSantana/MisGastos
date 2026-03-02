@@ -208,6 +208,106 @@ El webhook debe ser público para Telegram, pero se recomienda:
 - exponer solo `POST` en el endpoint;
 - agregar AWS WAF con rate limit.
 
+## Runbook DLQ (P1-T4)
+
+Este runbook aplica a la cola principal `telegram-gastos-ingress-queue` y su DLQ `telegram-gastos-ingress-dlq`.
+
+### Objetivo
+
+Recuperar mensajes fallidos de DLQ de forma controlada, minimizando riesgo de duplicados, loops de reintento y degradacion operativa.
+
+### Senales para activar runbook
+
+- aumento sostenido de mensajes en DLQ
+- errores repetidos `worker_process_failure`
+- crecimiento de `ApproximateAgeOfOldestMessage`
+
+### Pre-checks obligatorios
+
+1. Confirmar que la causa raiz esta mitigada.
+2. Validar que el worker esta saludable (sin error rate anomalo reciente).
+3. Confirmar capacidad operativa (concurrencia Lambda y backlog de cola principal).
+4. Definir estrategia: replay parcial o replay total.
+
+### Diagnostico rapido (CLI)
+
+```bash
+aws sqs get-queue-url --queue-name telegram-gastos-ingress-queue --region <REGION>
+aws sqs get-queue-url --queue-name telegram-gastos-ingress-dlq --region <REGION>
+
+aws sqs get-queue-attributes \
+  --queue-url <DLQ_URL> \
+  --attribute-names ApproximateNumberOfMessages ApproximateAgeOfOldestMessage RedrivePolicy \
+  --region <REGION>
+
+aws sqs receive-message \
+  --queue-url <DLQ_URL> \
+  --max-number-of-messages 10 \
+  --visibility-timeout 30 \
+  --message-attribute-names All \
+  --attribute-names All \
+  --region <REGION>
+```
+
+### Estrategia A: replay parcial (recomendada por defecto)
+
+Usar cuando el fallo esta acotado y se quiere minimizar riesgo operativo.
+
+1. Leer lote pequeno desde DLQ.
+2. Re-enviar mensajes validos a cola principal.
+3. Verificar procesamiento correcto en logs del worker.
+4. Eliminar solo mensajes reprocesados de la DLQ.
+
+```bash
+aws sqs send-message \
+  --queue-url <MAIN_QUEUE_URL> \
+  --message-body '<MESSAGE_BODY_JSON>' \
+  --message-attributes '<MESSAGE_ATTRIBUTES_JSON>' \
+  --region <REGION>
+
+aws sqs delete-message \
+  --queue-url <DLQ_URL> \
+  --receipt-handle '<RECEIPT_HANDLE>' \
+  --region <REGION>
+```
+
+### Estrategia B: replay total (solo con causa sistemica resuelta)
+
+Usar cuando la causa raiz fue corregida y se valida capacidad para absorber el volumen.
+
+```bash
+aws sqs get-queue-attributes \
+  --queue-url <DLQ_URL> \
+  --attribute-names QueueArn \
+  --region <REGION>
+
+aws sqs start-message-move-task \
+  --source-arn <DLQ_ARN> \
+  --region <REGION>
+
+aws sqs list-message-move-tasks \
+  --source-arn <DLQ_ARN> \
+  --region <REGION>
+```
+
+### Riesgos y mitigaciones
+
+- duplicados funcionales por replay/retry: mitigado por idempotencia por `updateId`
+- poison messages: empezar por replay parcial y excluir payloads invalidos
+- replay storm: usar lotes pequenos y monitoreo activo
+
+### Validaciones post-replay
+
+- la DLQ desciende como se espera
+- `worker_process_failure` vuelve a baseline
+- la cola principal drena sin acumulacion sostenida
+
+### Criterio de cierre de incidente
+
+- mensajes criticos reprocesados
+- DLQ en nivel aceptable
+- causa raiz y acciones preventivas documentadas
+
 ## Infrastructure Cost Estimation
 
 Estimación mensual de costos para la infraestructura declarada en CDK en `lib/telegram-bot-gastos-stack.ts`, usando precios públicos on-demand en `us-east-1`, sin Free Tier.

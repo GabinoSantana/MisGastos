@@ -88,7 +88,10 @@ export const handler = async (event: any): Promise<any> => {
         const webhookSecret = await getWebhookSecret();
         if (!webhookSecret) {
           console.log("Webhook secret missing from SSM");
-          return createResponse(500, { message: "Server misconfigured" });
+          return createResponse(500, {
+            message: "Server misconfigured",
+            requestId: requestMeta.requestId,
+          });
         }
         if (!isValidTelegramSecret(event, webhookSecret!)) {
           console.log("Unauthorized request [401]");

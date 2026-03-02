@@ -1,5 +1,6 @@
 import * as cdk from "aws-cdk-lib";
-import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
+import * as integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import { Construct } from "constructs";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
@@ -7,7 +8,8 @@ import path from "path";
 import { CfnOutput } from "aws-cdk-lib";
 import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
 import * as ssm from "aws-cdk-lib/aws-ssm";
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as wafv2 from "aws-cdk-lib/aws-wafv2";
+import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 
 const TELEGRAM_BOT_TOKEN_PARAM_NAME = "/telegram-bot-gastos/telegram-token";
 const WEBHOOK_SECRET_PARAM_NAME = "/telegram-bot-gastos/webhook-secret";
@@ -90,32 +92,94 @@ export class TelegramBotGastosStack extends cdk.Stack {
     gastosTabla.grantReadWriteData(telegramGastosBotLambda);
 
     // CREATE API GATEWAY
-    const backendApi = new apigateway.RestApi(
-      this,
-      "TelegramGastosBotApiGateway",
+    const webhookIntegration = new integrations.HttpLambdaIntegration(
+      "TelegramWebhookIntegration",
+      telegramGastosBotLambda,
       {
-        restApiName: "TelegramGastosBotApiGateway",
-        description: "API Gateway for the Telegram bot gastos backend",
+        payloadFormatVersion: apigwv2.PayloadFormatVersion.VERSION_1_0,
       },
     );
-
-    const integration = new apigateway.LambdaIntegration(
-      telegramGastosBotLambda,
-    );
-
-    // Also keep /telegram-gastos-bot for flexibility
-    const telegramGastosBot = backendApi.root.addResource(
-      "telegram-gastos-bot",
-    );
-    telegramGastosBot.addMethod("POST", integration);
-
-    this.apiUrl = new CfnOutput(this, "CFNApiUrl", {
-      value: backendApi.url,
-      description: "API Gateway URL for the AMAV backend",
+    const httpApi = new apigwv2.HttpApi(this, "TelegramGastosBotHttpApi", {
+      createDefaultStage: true,
     });
 
+    httpApi.addRoutes({
+      path: "/telegram-gastos-bot",
+      methods: [apigwv2.HttpMethod.POST],
+      integration: webhookIntegration,
+    });
+
+    const webAcl = new wafv2.CfnWebACL(this, "TelegramWebhookWebAcl", {
+      scope: "REGIONAL",
+      defaultAction: { allow: {} },
+      visibilityConfig: {
+        cloudWatchMetricsEnabled: true,
+        metricName: "telegramWebhookWebAcl",
+        sampledRequestsEnabled: true,
+      },
+      rules: [
+        {
+          name: "TelegramWebhookRateLimit",
+          priority: 0,
+          action: { block: {} },
+          statement: {
+            rateBasedStatement: {
+              aggregateKeyType: "IP",
+              limit: 1000, // requests por 5 min por IP (ajustable)
+              scopeDownStatement: {
+                byteMatchStatement: {
+                  fieldToMatch: { uriPath: {} },
+                  positionalConstraint: "STARTS_WITH",
+                  searchString: "/telegram-gastos-bot",
+                  textTransformations: [{ priority: 0, type: "NONE" }],
+                },
+              },
+            },
+          },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: "telegramWebhookRateLimitRule",
+            sampledRequestsEnabled: true,
+          },
+        },
+      ],
+    });
+
+    new wafv2.CfnWebACLAssociation(this, "TelegramWebhookWebAclAssoc", {
+      webAclArn: webAcl.attrArn,
+      resourceArn: `arn:aws:apigateway:${cdk.Stack.of(this).region}::/apis/${httpApi.httpApiId}/stages/$default`,
+    });
+
+    // ALARMS
+    const httpApi4xxMetric = new cloudwatch.Metric({
+      namespace: "AWS/ApiGateway",
+      metricName: "4xx",
+      dimensionsMap: {
+        ApiId: httpApi.httpApiId,
+        Stage: "$default",
+      },
+      statistic: "sum",
+      period: cdk.Duration.minutes(5),
+    });
+
+    new cloudwatch.Alarm(this, "Webhook4xxAlarm", {
+      metric: httpApi4xxMetric,
+      threshold: 50,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+      alarmDescription:
+        "Spike de errores 4xx en webhook Telegram (incluye 401 por token invalido y 403 por WAF).",
+    });
+
+    // OUTPUTS
     this.lambdaFunctionName = new CfnOutput(this, "LambdaFunctionName", {
       value: telegramGastosBotLambda.functionName,
+    });
+
+    this.apiUrl = new CfnOutput(this, "CFNApiUrl", {
+      value: httpApi.apiEndpoint,
+      description: "API Gateway URL for the Telegram bot gastos backend",
     });
   }
 }

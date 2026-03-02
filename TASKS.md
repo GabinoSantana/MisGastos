@@ -6,6 +6,7 @@ La estrategia macro vive en el plan aprobado y aqui se gestiona el avance por ta
 ## Task Lifecycle
 
 Estados permitidos:
+
 - `todo`
 - `in_progress`
 - `review`
@@ -13,6 +14,7 @@ Estados permitidos:
 - `blocked`
 
 Regla de flujo:
+
 - Solo una task en `in_progress` por implementador.
 - Toda task pasa por `review` antes de `done`.
 - Si una dependencia no esta en `done`, la task queda `blocked`.
@@ -20,30 +22,35 @@ Regla de flujo:
 ## Stories (P0..P4)
 
 ### P0 - Security Hardening
+
 - **Objetivo**: proteger el webhook y reducir superficie de ataque.
 - **In scope**: validacion de secret token, POST-only, logging seguro, rate limiting.
 - **Out of scope**: rediseño async completo.
 - **Riesgos**: bloqueo de requests legitimos por configuracion incorrecta.
 
 ### P1 - Async Core
+
 - **Objetivo**: desacoplar ingreso y procesamiento con SQS + worker + DLQ.
 - **In scope**: ingress lambda, queue principal, DLQ, worker, retries.
 - **Out of scope**: rediseño profundo de agregados de negocio.
 - **Riesgos**: duplicados, mal ajuste de visibility timeout.
 
 ### P2 - Data Model Optimization
+
 - **Objetivo**: optimizar consultas mensuales y costo/latencia.
 - **In scope**: agregados mensuales y lectura optimizada para resumen/listado.
 - **Out of scope**: analytics avanzados fuera del caso de uso.
 - **Riesgos**: inconsistencias de agregados por idempotencia incompleta.
 
 ### P3 - Observability and Cost
+
 - **Objetivo**: mejorar operabilidad y control de costos.
 - **In scope**: alarmas, dashboard, retencion de logs, rightsizing.
 - **Out of scope**: plataforma de observabilidad externa.
 - **Riesgos**: exceso de ruido de alarmas o tuning insuficiente.
 
 ### P4 - Validation and Release
+
 - **Objetivo**: asegurar rollout seguro y reversible.
 - **In scope**: test E2E, carga controlada, rollback plan, documentacion final.
 - **Out of scope**: cambios funcionales nuevos para usuario final.
@@ -53,6 +60,7 @@ Regla de flujo:
 
 ```md
 ### <task_id> - <titulo>
+
 - story_id:
 - owner:
 - prioridad: Critical|High|Medium|Low
@@ -75,6 +83,7 @@ Regla de flujo:
 ### S0 - Backlog Governance
 
 ### S0-T1 - Definir historias P0..P4
+
 - story_id: S0
 - owner: ops
 - prioridad: Critical
@@ -93,6 +102,7 @@ Regla de flujo:
 - estado: done
 
 ### S0-T2 - Definir plantilla unica de task
+
 - story_id: S0
 - owner: ops
 - prioridad: Critical
@@ -111,6 +121,7 @@ Regla de flujo:
 - estado: done
 
 ### S0-T3 - Armar backlog inicial por historia
+
 - story_id: S0
 - owner: ops
 - prioridad: Critical
@@ -129,6 +140,7 @@ Regla de flujo:
 - estado: done
 
 ### S0-T4 - Mapear dependencias criticas
+
 - story_id: S0
 - owner: ops
 - prioridad: High
@@ -147,6 +159,7 @@ Regla de flujo:
 - estado: done
 
 ### S0-T5 - Priorizar por riesgo/impacto
+
 - story_id: S0
 - owner: ops
 - prioridad: High
@@ -165,6 +178,7 @@ Regla de flujo:
 - estado: done
 
 ### S0-T6 - Definir DoR / DoD
+
 - story_id: S0
 - owner: ops
 - prioridad: High
@@ -182,6 +196,7 @@ Regla de flujo:
 - estado: done
 
 ### S0-T7 - Definir tracking dual
+
 - story_id: S0
 - owner: ops
 - prioridad: High
@@ -197,11 +212,12 @@ Regla de flujo:
   - tests: N/A
   - logs/metricas: N/A
   - documentacion: seccion Dual Tracking Rules
-- estado: done
+- estado: done (sin tests automatizados aún)
 
 ### P0 - Security Hardening Tasks
 
 ### P0-T1 - Validar secret token del webhook
+
 - story_id: P0
 - owner: app
 - prioridad: Critical
@@ -217,9 +233,10 @@ Regla de flujo:
   - tests: unit tests del handler
   - logs/metricas: metrica de request invalida
   - documentacion: README actualizada
-- estado: todo
+- estado: done (sin tests automatizados aún)
 
 ### P0-T2 - Restringir endpoint a POST-only
+
 - story_id: P0
 - owner: infra
 - prioridad: High
@@ -235,9 +252,10 @@ Regla de flujo:
   - tests: integration test API method
   - logs/metricas: 4XX por metodo invalido
   - documentacion: README actualizada
-- estado: todo
+- estado: done (sin tests automatizados aún)
 
 ### P0-T3 - Sanitizar logging de payload
+
 - story_id: P0
 - owner: app
 - prioridad: High
@@ -253,9 +271,10 @@ Regla de flujo:
   - tests: unit tests de logger helper (si aplica)
   - logs/metricas: sample logs revisados
   - documentacion: guideline de logging en README
-- estado: todo
+- estado: done (sin tests automatizados aún)
 
 ### P0-T4 - Rate limiting base y alarma de rechazos
+
 - story_id: P0
 - owner: infra
 - prioridad: Medium
@@ -271,11 +290,12 @@ Regla de flujo:
   - tests: N/A
   - logs/metricas: alarmas y metricas visibles
   - documentacion: runbook de ajuste de limite
-- estado: todo
+- estado: done (sin tests automatizados aún)
 
 ### P1 - Async Core Tasks
 
 ### P1-T1 - Crear ingress lambda (ack rapido + enqueue)
+
 - story_id: P1
 - owner: app
 - prioridad: Critical
@@ -294,6 +314,7 @@ Regla de flujo:
 - estado: todo
 
 ### P1-T2 - Crear SQS principal + DLQ
+
 - story_id: P1
 - owner: infra
 - prioridad: Critical
@@ -312,6 +333,7 @@ Regla de flujo:
 - estado: todo
 
 ### P1-T3 - Implementar worker lambda con retries parciales
+
 - story_id: P1
 - owner: app
 - prioridad: Critical
@@ -330,6 +352,7 @@ Regla de flujo:
 - estado: todo
 
 ### P1-T4 - Runbook de reproceso DLQ
+
 - story_id: P1
 - owner: ops
 - prioridad: High
@@ -350,6 +373,7 @@ Regla de flujo:
 ### P2 - Data Model Optimization Tasks
 
 ### P2-T1 - Diseñar esquema de agregados mensuales
+
 - story_id: P2
 - owner: app
 - prioridad: Critical
@@ -368,6 +392,7 @@ Regla de flujo:
 - estado: todo
 
 ### P2-T2 - Actualizar worker para mantener agregados idempotentes
+
 - story_id: P2
 - owner: app
 - prioridad: High
@@ -386,6 +411,7 @@ Regla de flujo:
 - estado: todo
 
 ### P2-T3 - Migrar resumen/listado a paths optimizados
+
 - story_id: P2
 - owner: app
 - prioridad: High
@@ -404,6 +430,7 @@ Regla de flujo:
 - estado: todo
 
 ### P2-T4 - Medir mejora de latencia y consumo
+
 - story_id: P2
 - owner: qa
 - prioridad: Medium
@@ -424,6 +451,7 @@ Regla de flujo:
 ### P3 - Observability and Cost Tasks
 
 ### P3-T1 - Alarmas criticas de plataforma
+
 - story_id: P3
 - owner: infra
 - prioridad: High
@@ -442,6 +470,7 @@ Regla de flujo:
 - estado: todo
 
 ### P3-T2 - Dashboard operativo minimo
+
 - story_id: P3
 - owner: infra
 - prioridad: Medium
@@ -459,6 +488,7 @@ Regla de flujo:
 - estado: todo
 
 ### P3-T3 - Politica de retencion de logs por ambiente
+
 - story_id: P3
 - owner: infra
 - prioridad: Medium
@@ -477,6 +507,7 @@ Regla de flujo:
 - estado: todo
 
 ### P3-T4 - Rightsizing y revision de costo API
+
 - story_id: P3
 - owner: ops
 - prioridad: Medium
@@ -497,6 +528,7 @@ Regla de flujo:
 ### P4 - Validation and Release Tasks
 
 ### P4-T1 - Integracion E2E del flujo async
+
 - story_id: P4
 - owner: qa
 - prioridad: High
@@ -515,6 +547,7 @@ Regla de flujo:
 - estado: todo
 
 ### P4-T2 - Prueba de carga controlada
+
 - story_id: P4
 - owner: qa
 - prioridad: Medium
@@ -533,6 +566,7 @@ Regla de flujo:
 - estado: todo
 
 ### P4-T3 - Plan de rollout/rollback
+
 - story_id: P4
 - owner: ops
 - prioridad: High
@@ -551,6 +585,7 @@ Regla de flujo:
 - estado: todo
 
 ### P4-T4 - Cierre documental y handoff
+
 - story_id: P4
 - owner: ops
 - prioridad: Medium
@@ -610,6 +645,7 @@ flowchart LR
 ## DoR and DoD
 
 ### Definition of Ready (DoR)
+
 - objetivo y resultado esperado claros
 - dependencias en `done` o plan de desbloqueo definido
 - archivos impactados identificados
@@ -618,6 +654,7 @@ flowchart LR
 - owner asignado
 
 ### Definition of Done (DoD)
+
 - implementacion completa segun criterio de aceptacion
 - pruebas ejecutadas y evidencia registrada
 - documentacion actualizada cuando aplica
@@ -636,6 +673,7 @@ flowchart LR
 ## Gate de salida de S0
 
 S0 se considera completado cuando:
+
 - S0-T1..S0-T7 estan en `done`
 - backlog P0..P4 esta priorizado y con dependencias
 - DoR/DoD y tracking dual estan definidos y aplicables

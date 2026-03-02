@@ -10,6 +10,7 @@ import * as ssm from "aws-cdk-lib/aws-ssm";
 // import * as sqs from 'aws-cdk-lib/aws-sqs';
 
 const TELEGRAM_BOT_TOKEN_PARAM_NAME = "/telegram-bot-gastos/telegram-token";
+const WEBHOOK_SECRET_PARAM_NAME = "/telegram-bot-gastos/webhook-secret";
 const GSI_FECHA_NAME = "gsiFecha";
 const GSI_RUBRO_NAME = "gsiRubro";
 
@@ -23,6 +24,7 @@ export class TelegramBotGastosStack extends cdk.Stack {
       this.node.tryGetContext("sharedSummaryChatIds") ??
       process.env.SHARED_SUMMARY_CHAT_IDS ??
       "";
+
     const telegramTokenParam =
       ssm.StringParameter.fromSecureStringParameterAttributes(
         this,
@@ -31,6 +33,16 @@ export class TelegramBotGastosStack extends cdk.Stack {
           parameterName: TELEGRAM_BOT_TOKEN_PARAM_NAME,
         },
       );
+
+    const webhookSecretParam =
+      ssm.StringParameter.fromSecureStringParameterAttributes(
+        this,
+        "WebhookSecretParam",
+        {
+          parameterName: WEBHOOK_SECRET_PARAM_NAME,
+        },
+      );
+
     const gastosTabla = new Table(this, "gastosTabla", {
       partitionKey: { name: "pk", type: AttributeType.STRING },
       sortKey: { name: "sk", type: AttributeType.STRING },
@@ -68,11 +80,13 @@ export class TelegramBotGastosStack extends cdk.Stack {
           GSI_FECHA_NAME,
           GSI_RUBRO_NAME,
           TELEGRAM_BOT_TOKEN_PARAM_NAME,
+          WEBHOOK_SECRET_PARAM_NAME,
           SHARED_SUMMARY_CHAT_IDS: sharedSummaryChatIds,
         },
       },
     );
     telegramTokenParam.grantRead(telegramGastosBotLambda);
+    webhookSecretParam.grantRead(telegramGastosBotLambda);
     gastosTabla.grantReadWriteData(telegramGastosBotLambda);
 
     // CREATE API GATEWAY
@@ -82,20 +96,6 @@ export class TelegramBotGastosStack extends cdk.Stack {
       {
         restApiName: "TelegramGastosBotApiGateway",
         description: "API Gateway for the Telegram bot gastos backend",
-        defaultCorsPreflightOptions: {
-          allowOrigins: ["*"],
-          allowMethods: ["GET", "POST", "DELETE", "PATCH", "OPTIONS"],
-          allowHeaders: [
-            "Content-Type",
-            "Authorization",
-            "X-Amz-Date",
-            "Authorization",
-            "X-Api-Key",
-            "X-Amz-Security-Token",
-          ],
-          allowCredentials: true,
-          maxAge: cdk.Duration.days(1),
-        },
       },
     );
 
@@ -107,7 +107,6 @@ export class TelegramBotGastosStack extends cdk.Stack {
     const telegramGastosBot = backendApi.root.addResource(
       "telegram-gastos-bot",
     );
-    telegramGastosBot.addMethod("GET", integration);
     telegramGastosBot.addMethod("POST", integration);
 
     this.apiUrl = new CfnOutput(this, "CFNApiUrl", {

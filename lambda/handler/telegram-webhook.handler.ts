@@ -3,7 +3,9 @@ import { handleCreateGastoCommand } from "../commands/create-gasto.command";
 import { handleGastosMesCommand } from "../commands/gastos-mes.command";
 import { handleResumenMesCommand } from "../commands/resumen-mes.command";
 import type { TelegramWebhookPayload } from "../telegram/telegram.types";
+import { getWebhookSecret } from "../telegram/webhook.secret";
 import { createResponse } from "../utils/http.utils";
+import { isValidTelegramSecret } from "../utils/validateToken.utils";
 
 async function handleTelegramPost(event: any) {
   let payload: TelegramWebhookPayload = {};
@@ -68,13 +70,34 @@ async function handleTelegramPost(event: any) {
 export const handler = async (event: any): Promise<any> => {
   try {
     const httpMethod = event?.httpMethod;
-
+    // TODO: this must be eliminated only for debugging purposes
     console.log("Event:", JSON.stringify(event, null, 2));
+    // TODO: enable this when previous log is eliminated
+    // const requestId = event.requestContext?.requestId;
+    // const path = event.path;
+    // const hasSecretHeader = !!(
+    //   event.headers?.["X-Telegram-Bot-Api-Secret-Token"] ||
+    //   event.headers?.["x-telegram-bot-api-secret-token"]
+    // );
+    // console.log(
+    //   JSON.stringify({
+    //     requestId,
+    //     httpMethod,
+    //     path,
+    //     hasSecretHeader,
+    //   }),
+    // );
     switch (httpMethod) {
-      case "GET":
-        return createResponse(200, { message: "ok" });
-
       case "POST":
+        const webhookSecret = await getWebhookSecret();
+        if (!webhookSecret) {
+          console.log("Webhook secret missing from SSM");
+          return createResponse(500, { message: "Server misconfigured" });
+        }
+        if (!isValidTelegramSecret(event, webhookSecret!)) {
+          console.log("Unauthorized request [401]");
+          return createResponse(401, { message: "Unauthorized" });
+        }
         return await handleTelegramPost(event);
 
       default:

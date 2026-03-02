@@ -7,7 +7,7 @@ export function createResponse(statusCode: number, body: unknown) {
       "Access-Control-Allow-Credentials": true,
       "Access-Control-Allow-Headers":
         "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-      "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS,PATCH",
+      "Access-Control-Allow-Methods": "POST",
     },
     body: JSON.stringify(body),
   };

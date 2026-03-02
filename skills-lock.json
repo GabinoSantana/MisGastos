@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "aws-cdk-development": {
+      "source": "zxkane/aws-skills",
+      "sourceType": "github",
+      "computedHash": "53e82fc1181cb1115673e99cdd4e4735960e4b68836d2dab9dc399884bce771d"
+    },
+    "aws-serverless": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "f9876d2b5f07867ee1af63449684d3d6c141641fc6873b2181a34b8d160baf2d"
+    },
+    "aws-solution-architect": {
+      "source": "alirezarezvani/claude-skills",
+      "sourceType": "github",
+      "computedHash": "6d18f2a008a9766859cf3fd771c56863a64071cbf50b3c99437640815572833c"
+    }
+  }
+}

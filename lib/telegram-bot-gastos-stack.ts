@@ -8,7 +8,6 @@ import path from "path";
 import { CfnOutput } from "aws-cdk-lib";
 import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
 import * as ssm from "aws-cdk-lib/aws-ssm";
-import * as wafv2 from "aws-cdk-lib/aws-wafv2";
 import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 
 const TELEGRAM_BOT_TOKEN_PARAM_NAME = "/telegram-bot-gastos/telegram-token";
@@ -100,7 +99,7 @@ export class TelegramBotGastosStack extends cdk.Stack {
       },
     );
     const httpApi = new apigwv2.HttpApi(this, "TelegramGastosBotHttpApi", {
-      createDefaultStage: true,
+      createDefaultStage: false,
     });
 
     httpApi.addRoutes({
@@ -109,45 +108,14 @@ export class TelegramBotGastosStack extends cdk.Stack {
       integration: webhookIntegration,
     });
 
-    const webAcl = new wafv2.CfnWebACL(this, "TelegramWebhookWebAcl", {
-      scope: "REGIONAL",
-      defaultAction: { allow: {} },
-      visibilityConfig: {
-        cloudWatchMetricsEnabled: true,
-        metricName: "telegramWebhookWebAcl",
-        sampledRequestsEnabled: true,
+    new apigwv2.CfnStage(this, "TelegramGastosBotHttpApiStage", {
+      apiId: httpApi.httpApiId,
+      stageName: "prod",
+      autoDeploy: true,
+      defaultRouteSettings: {
+        throttlingBurstLimit: 50,
+        throttlingRateLimit: 25, // requests per second
       },
-      rules: [
-        {
-          name: "TelegramWebhookRateLimit",
-          priority: 0,
-          action: { block: {} },
-          statement: {
-            rateBasedStatement: {
-              aggregateKeyType: "IP",
-              limit: 1000, // requests por 5 min por IP (ajustable)
-              scopeDownStatement: {
-                byteMatchStatement: {
-                  fieldToMatch: { uriPath: {} },
-                  positionalConstraint: "STARTS_WITH",
-                  searchString: "/telegram-gastos-bot",
-                  textTransformations: [{ priority: 0, type: "NONE" }],
-                },
-              },
-            },
-          },
-          visibilityConfig: {
-            cloudWatchMetricsEnabled: true,
-            metricName: "telegramWebhookRateLimitRule",
-            sampledRequestsEnabled: true,
-          },
-        },
-      ],
-    });
-
-    new wafv2.CfnWebACLAssociation(this, "TelegramWebhookWebAclAssoc", {
-      webAclArn: webAcl.attrArn,
-      resourceArn: `arn:aws:apigateway:${cdk.Stack.of(this).region}::/apis/${httpApi.httpApiId}/stages/$default`,
     });
 
     // ALARMS
@@ -156,7 +124,7 @@ export class TelegramBotGastosStack extends cdk.Stack {
       metricName: "4xx",
       dimensionsMap: {
         ApiId: httpApi.httpApiId,
-        Stage: "$default",
+        Stage: "prod",
       },
       statistic: "sum",
       period: cdk.Duration.minutes(5),
@@ -169,7 +137,7 @@ export class TelegramBotGastosStack extends cdk.Stack {
       datapointsToAlarm: 1,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
       alarmDescription:
-        "Spike de errores 4xx en webhook Telegram (incluye 401 por token invalido y 403 por WAF).",
+        "Spike de errores 4xx en webhook Telegram (incluye 401 por token invalido o throttling).",
     });
 
     // OUTPUTS
@@ -178,7 +146,7 @@ export class TelegramBotGastosStack extends cdk.Stack {
     });
 
     this.apiUrl = new CfnOutput(this, "CFNApiUrl", {
-      value: httpApi.apiEndpoint,
+      value: `${httpApi.apiEndpoint}/prod`,
       description: "API Gateway URL for the Telegram bot gastos backend",
     });
   }

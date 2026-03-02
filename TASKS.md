@@ -291,6 +291,9 @@ Regla de flujo:
   - logs/metricas: alarmas y metricas visibles
   - documentacion: runbook de ajuste de limite
 - estado: done (sin tests automatizados aún)
+- nota_decision_arquitectonica:
+  - Se descarta WAF association por migración a HTTP API (no soportado directo).
+  - Se adopta throttling nativo + alarmas CloudWatch como control P0.
 
 ### P1 - Async Core Tasks
 
